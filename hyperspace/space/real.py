@@ -1,3 +1,5 @@
+import warnings
+
 from skopt.space import Real
 from hyperspace.api.space import HyperSpace
 

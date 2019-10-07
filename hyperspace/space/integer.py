@@ -1,3 +1,6 @@
+import warnings
+from math import floor, ceil
+
 from skopt.space import Integer
 from hyperspace.api.space import HyperSpace
 
