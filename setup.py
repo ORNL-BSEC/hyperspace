@@ -31,12 +31,17 @@ setup(
     license="MIT license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
-    keywords='hyperspace',
+    keywords='hspace',
     name='hyperspace',
     packages=find_packages(),
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
+    entry_points={
+        'console_scripts': [
+            'hyperspace = hyperspace.launcher:main',
+        ],
+    },
     url='https://github.com/bsec-ornl/hyperspace',
     version='0.1.0',
     zip_safe=False,
