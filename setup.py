@@ -31,7 +31,7 @@ setup(
     license="MIT license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
-    keywords='hyperspace',
+    keywords='hspace',
     name='hyperspace',
     packages=find_packages(),
     setup_requires=setup_requirements,
