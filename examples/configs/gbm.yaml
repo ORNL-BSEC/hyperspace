@@ -1,0 +1,11 @@
+name: gbm
+
+parameters:
+
+  max_depth:
+    low:  2
+    high: 10
+
+  learning_rate:
+    low:  0.10 
+    high: 1.0 

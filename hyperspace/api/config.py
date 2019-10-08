@@ -1,51 +1,51 @@
-import datetime as dtm
+import os
 import json
-import os.path
 import pathlib
-import typing
+import datetime as dtm
+from typing import Optional
 
 from hyperspace.exception import HyperspaceInitializationException
 from hyperspace.internal.parser import Parser
 from hyperspace.internal.provider import Provider
 
 
-class ModelConfig:
+class Config:
     """
     Read from YAML configuration of a model, specifying all details of the run.
     Is a frontend for the provider, resolving all dependency-injection requests.
     """
 
-    PROJECT_FILE_NAME = '.dummy.yaml'
+    PROJECT_FILE_NAME = '.hyperspace.yaml'
     META_FILE_NAME = 'meta.json'
 
     @staticmethod
     def find_project_directory(start_path) -> str:
         """ Locate top-level project directory  """
         start_path = os.path.realpath(start_path)
-        possible_name = os.path.join(start_path, ModelConfig.PROJECT_FILE_NAME)
+        possible_path = os.path.join(start_path, Config.PROJECT_FILE_NAME)
 
-        if os.path.exists(possible_name):
+        if os.path.exists(possible_path):
             return start_path
         else:
             up_path = os.path.realpath(os.path.join(start_path, '..'))
             if os.path.realpath(start_path) == up_path:
                 raise RuntimeError(f"Couldn't find project file starting from {start_path}")
             else:
-                return ModelConfig.find_project_directory(up_path)
+                return Config.find_project_directory(up_path)
 
     @staticmethod
     def from_project_directory(path) -> str:
         """ Locate given path relative to project directory """
-        return os.path.join(ModelConfig.find_project_directory('.'), path)
+        return os.path.join(Config.find_project_directory('.'), path)
 
     @classmethod
-    def from_file(cls, filename: str, run_number: int = 1, resume_training: bool = False, seed: int = None,
-                  device: str = 'cuda', parameters: typing.Optional[dict] = None, tag: typing.Optional[str] = None):
-        """ Create model config from file """
+    def from_file(cls, filename: str, run_number: int = 1, seed: int = None,
+                  parameters: Optional[dict] = None, tag: Optional[str] = None):
+        """ Alternate constructor to create model config from file """
         with open(filename, 'r') as fp:
             model_config_contents = Parser.parse(fp)
 
-        project_config_path = ModelConfig.find_project_directory(os.path.dirname(os.path.abspath(filename)))
+        project_config_path = Config.find_project_directory(os.path.dirname(os.path.abspath(filename)))
 
         with open(os.path.join(project_config_path, cls.PROJECT_FILE_NAME), 'r') as fp:
             project_config_contents = Parser.parse(fp)
@@ -55,29 +55,26 @@ class ModelConfig:
             **model_config_contents
         }
 
-        return ModelConfig(
+        return Config(
             filename=filename,
             configuration=aggregate_dictionary,
             run_number=run_number,
             project_dir=project_config_path,
-            resume_training=resume_training,
             seed=seed,
-            device=device,
             parameters=parameters,
             tag=tag
         )
 
     @classmethod
-    def script(cls, model_name: str = 'script', configuration: typing.Optional[dict] = None, run_number: int = 1,
-               resume_training=False, seed: int = None, device: str = 'cuda',
-               parameters: typing.Optional[dict] = None, tag: typing.Optional[str] = None):
+    def script(cls, model_name: str = 'script', configuration: Optional[dict] = None, run_number: int = 1,
+               seed: int = None, parameters: Optional[dict] = None, tag: Optional[str] = None):
         """ Create model config from supplied data """
         if configuration is None:
             configuration = {}
 
         configuration['name'] = model_name
 
-        project_config_path = ModelConfig.find_project_directory(os.path.dirname(os.path.abspath(os.getcwd())))
+        project_config_path = Config.find_project_directory(os.path.dirname(os.path.abspath(os.getcwd())))
 
         with open(os.path.join(project_config_path, cls.PROJECT_FILE_NAME), 'r') as fp:
             project_config_contents = Parser.parse(fp)
@@ -87,24 +84,20 @@ class ModelConfig:
             **configuration
         }
 
-        return ModelConfig(
+        return Config(
             filename="[script]",
             configuration=aggregate_dictionary,
             run_number=run_number,
             project_dir=project_config_path,
-            resume_training=resume_training,
             seed=seed,
-            device=device,
             parameters=parameters,
             tag=tag
         )
 
     def __init__(self, filename: str, configuration: dict, run_number: int, project_dir: str,
-                 resume_training=False, seed: int = None, device: str = 'cuda',
-                 parameters: typing.Optional[dict] = None, tag: typing.Optional[str] = None):
+                 seed: int = None, parameters: Optional[dict] = None,
+                 tag: Optional[str] = None):
         self.filename = filename
-        self.device = device
-        self.resume_training = resume_training
         self.run_number = run_number
         self.seed = seed if seed is not None else (dtm.date.today().year + self.run_number)
 
@@ -134,20 +127,10 @@ class ModelConfig:
 
         if self.meta_exists():
             self._meta = self._load_meta()
-
-            if resume_training:
-                if (tag is not None) and (tag != self._meta['tag']):
-                    raise VelInitializationException("Model tag mismatch")
-                else:
-                    self._tag = self._meta['tag']
-            else:
-                self._tag = tag
         else:
             self._tag = tag
             self._meta = None
 
-    ####################################################################################################################
-    # INTERNAL FUNCTIONS
     def _prepare_environment(self) -> dict:
         """ Return full environment for dependency injection """
         return {**self.contents, 'run_number': self.run_number}
@@ -155,7 +138,7 @@ class ModelConfig:
     def _load_meta(self) -> dict:
         """ Load previously written metadata about the project """
         if not self.meta_exists():
-            raise VelInitializationException("Previous run does not exist")
+            raise HyperspaceInitializationException("Previous run does not exist")
 
         with open(self.meta_dir(self.META_FILE_NAME), 'rt') as fp:
             return json.load(fp)
@@ -169,8 +152,6 @@ class ModelConfig:
             'config': self.render_configuration()
         }
 
-    ####################################################################################################################
-    # Metadata handling
     def meta_exists(self):
         """ If metadata file exists for this config """
         return os.path.exists(self.meta_dir(self.META_FILE_NAME))
@@ -178,7 +159,7 @@ class ModelConfig:
     def enforce_meta(self):
         """ Make sure metadata exists for this config """
         if self._meta is None:
-            raise VelInitializationException("Given model has not been initialized")
+            raise HyperspaceInitializationException("Given model has not been initialized")
 
     def write_meta(self) -> None:
         """ Write metadata to a file """
@@ -189,8 +170,6 @@ class ModelConfig:
         with open(self.meta_dir(self.META_FILE_NAME), 'wt') as fp:
             return json.dump(self.meta, fp)
 
-    ####################################################################################################################
-    # COMMAND UTILITIES
     def get_command(self, command_name):
         """ Return object for given command """
         return self.provider.instantiate_from_data(self.command_descriptors[command_name])
@@ -200,8 +179,6 @@ class ModelConfig:
         command_descriptor = self.get_command(command_name)
         return command_descriptor.run(*varargs)
 
-    ####################################################################################################################
-    # MODEL DIRECTORIES
     def project_top_dir(self, *args) -> str:
         """ Project top-level directory """
         return os.path.join(self.project_dir, *args)
@@ -226,12 +203,10 @@ class ModelConfig:
         """ Return directory for openai output files for this model """
         return self.output_dir('openai', self.run_name, *args)
 
-    ####################################################################################################################
-    # NAME UTILITIES
     @property
     def run_name(self) -> str:
         """ Return name of the run """
-        return "{}/{}".format(self._model_name, self.run_number)
+        return f"{self._model_name}/{self.run_number}"
 
     @property
     def name(self) -> str:
@@ -245,23 +220,14 @@ class ModelConfig:
         return self._meta
 
     @property
-    def tag(self) -> typing.Optional[str]:
+    def tag(self) -> Optional[str]:
         """ Tag for this model/run number """
         return self._tag
-
-    ####################################################################################################################
-    # MISC GETTERS
-    def torch_device(self):
-        """ Return torch device object """
-        import torch
-        return torch.device(self.device)
 
     def render_configuration(self) -> dict:
         """ Return a nice and picklable run configuration """
         return self.provider.render_environment()
 
-    ####################################################################################################################
-    # PROVIDER API
     def provide(self, name):
         """ Return a dependency-injected instance """
         return self.provider.instantiate_by_name(name)
@@ -270,28 +236,16 @@ class ModelConfig:
         """ Return a dependency-injected instance """
         return self.provider.instantiate_by_name_with_default(name, default_value=default)
 
-    ####################################################################################################################
-    # BANNERS - Maybe shouldn't be here, but they are for now
     def banner(self, command_name) -> None:
         """ Print a banner for running the system """
-        import torch
-        device = self.torch_device()
-
-        print("=" * 80)
-        print(f"Pytorch version: {torch.__version__} cuda version {torch.version.cuda} cudnn version {torch.backends.cudnn.version()}")  # noqa
-
         if self.tag:
-            print("Running model {}, run {} ({}) -- command {} -- device {}".format(
-                self._model_name, self.run_number, self.tag, command_name, self.device)
+            print("Running model {}, run {} ({}) -- command {}".format(
+                self._model_name, self.run_number, self.tag, command_name)
             )
         else:
-            print("Running model {}, run {} -- command {} -- device {}".format(
-                self._model_name, self.run_number, command_name, self.device)
+            print("Running model {}, run {} -- command {}".format(
+                self._model_name, self.run_number, command_name)
             )
-
-        if device.type == 'cuda':
-            device_idx = 0 if device.index is None else device.index
-            print(f"CUDA Device name {torch.cuda.get_device_name(device_idx)}")
         print(dtm.datetime.now().strftime("%Y/%m/%d - %H:%M:%S"))
         print("=" * 80)
 
@@ -302,7 +256,5 @@ class ModelConfig:
         print(dtm.datetime.now().strftime("%Y/%m/%d - %H:%M:%S"))
         print("=" * 80)
 
-    ####################################################################################################################
-    # Small UI utils
     def __repr__(self):
-        return f"<ModelConfig at {self.filename}>"
+        return f"<Config at {self.filename}>"

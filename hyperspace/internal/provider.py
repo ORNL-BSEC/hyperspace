@@ -1,6 +1,6 @@
-import importlib
 import inspect
-import typing
+import importlib
+from typing import Optional
 
 from hyperspace.internal.parser import Variable
 from hyperspace.internal.generic_factory import GenericFactory
@@ -8,7 +8,7 @@ from hyperspace.internal.generic_factory import GenericFactory
 
 class Provider:
     """ Dependency injection resolver for the configuration file """
-    def __init__(self, environment: dict, instances: typing.Optional[dict] = None, parameters: typing.Optional[dict] = None):
+    def __init__(self, environment: dict, instances: Optional[dict] = None, parameters: Optional[dict] = None):
         self.environment = environment
 
         self.parameters = parameters if parameters is not None else {}
@@ -122,4 +122,3 @@ class Provider:
     def get(self, name):
         """ Get object from given provider """
         return self.instantiate_by_name(name)
-
