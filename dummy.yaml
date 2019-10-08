@@ -1,0 +1,8 @@
+storage:
+  name: vel.storage.classic
+
+  backend:
+    name: vel.storage.backend.dummy
+
+  streaming:
+    - name: vel.storage.streaming.stdout
